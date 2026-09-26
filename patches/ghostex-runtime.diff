@@ -1,28 +1,7 @@
 Ghostex embedded editor integration on top of the upstream code-server patch series.
 
-diff --git a/lib/vscode/extensions/copilot/package.json b/lib/vscode/extensions/copilot/package.json
-index 4d15e2b7c42..bcfa74efb03 100644
---- a/lib/vscode/extensions/copilot/package.json
-+++ b/lib/vscode/extensions/copilot/package.json
-@@ -7,7 +7,7 @@
-   "completionsCoreVersion": "1.378.1799",
-   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
-   "ariaKey": "0c6ae279ed8443289764825290e4f9e2-1a736e7c-1324-4338-be46-fc2a58ae4d14-7255",
--  "buildType": "dev",
-+  "buildType": "prod",
-   "publisher": "GitHub",
-   "homepage": "https://github.com/features/copilot?editor=vscode",
-   "license": "SEE LICENSE IN LICENSE.txt",
-@@ -7131,5 +7131,6 @@
-     "protobufjs": false,
-     "fsevents@2.3.3": true,
-     "fsevents@2.3.2": true
--  }
-+  },
-+  "isPreRelease": false
- }
 diff --git a/lib/vscode/product.json b/lib/vscode/product.json
-index 47016c085d1..ac78768331f 100644
+index f3f91db9fab..643572f538b 100644
 --- a/lib/vscode/product.json
 +++ b/lib/vscode/product.json
 @@ -1,12 +1,12 @@
@@ -44,7 +23,7 @@ index 47016c085d1..ac78768331f 100644
  	"serverLicenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
  	"serverGreeting": [],
  	"serverLicense": [],
-@@ -14,23 +14,23 @@
+@@ -14,24 +14,24 @@
  	"serverApplicationName": "code-server-oss",
  	"serverDataFolderName": ".vscode-server-oss",
  	"tunnelApplicationName": "code-tunnel-oss",
@@ -67,6 +46,7 @@ index 47016c085d1..ac78768331f 100644
 +	"darwinBundleIdentifier": "com.coder.code.server",
  	"darwinProfileUUID": "47827DD9-4734-49A0-AF80-7E19B11495CC",
  	"darwinProfilePayloadUUID": "CF808BE7-53F3-46C6-A7E2-7EDB98A5E959",
+ 	"linuxDesktopName": "com.visualstudio.CodeOSS",
 -	"linuxIconName": "code-oss",
 +	"linuxIconName": "com.coder.code.server",
  	"licenseFileName": "LICENSE.txt",
@@ -75,7 +55,7 @@ index 47016c085d1..ac78768331f 100644
  	"nodejsArtifactFeed": "",
  	"electronArtifactFeed": "",
  	"urlProtocol": "code-oss",
-@@ -154,17 +154,13 @@
+@@ -155,17 +155,13 @@
  		"mcpRegistryDataUrl": "https://api.github.com/copilot/mcp_registry",
  		"managedSettingsUrl": "https://api.github.com/copilot_internal/managed_settings"
  	},
@@ -100,7 +80,7 @@ index 47016c085d1..ac78768331f 100644
  	"onboardingKeymaps": [
  		{
  			"id": "vscode",
-@@ -244,5 +240,21 @@
+@@ -245,5 +241,21 @@
  		"GitHub.copilot-chat"
  	],
  	"sessionsWindowAllowedExtensions": [],
@@ -124,7 +104,7 @@ index 47016c085d1..ac78768331f 100644
 +	"keyboardShortcutsUrlWin": "https://go.microsoft.com/fwlink/?linkid=832145"
  }
 diff --git a/lib/vscode/src/vs/base/common/network.ts b/lib/vscode/src/vs/base/common/network.ts
-index e5fbf538d86..030132d0e59 100644
+index bd7caad30c7..7ecb643e8c0 100644
 --- a/lib/vscode/src/vs/base/common/network.ts
 +++ b/lib/vscode/src/vs/base/common/network.ts
 @@ -203,8 +203,13 @@ class RemoteAuthoritiesImpl {
@@ -144,7 +124,7 @@ index e5fbf538d86..030132d0e59 100644
  
  	getServerRootPath(): string {
 diff --git a/lib/vscode/src/vs/base/common/product.ts b/lib/vscode/src/vs/base/common/product.ts
-index 8fa977ce360..ba4167ce384 100644
+index 03cf4d12338..93be6033089 100644
 --- a/lib/vscode/src/vs/base/common/product.ts
 +++ b/lib/vscode/src/vs/base/common/product.ts
 @@ -98,6 +98,7 @@ export interface IDictationRuntimeProductConfig {
@@ -156,7 +136,7 @@ index 8fa977ce360..ba4167ce384 100644
  	readonly updateEndpoint?: string
  	readonly logoutEndpoint?: string
 diff --git a/lib/vscode/src/vs/code/browser/workbench/workbench.ts b/lib/vscode/src/vs/code/browser/workbench/workbench.ts
-index 959fdb5c366..760f8a39e6c 100644
+index 51e28f1009f..d75d07a2630 100644
 --- a/lib/vscode/src/vs/code/browser/workbench/workbench.ts
 +++ b/lib/vscode/src/vs/code/browser/workbench/workbench.ts
 @@ -187,9 +187,56 @@ class ServerKeyedAESCrypto implements ISecretStorageCrypto {
@@ -236,7 +216,7 @@ index 959fdb5c366..760f8a39e6c 100644
  	const secretStorageCrypto = secretStorageKeyPath && ServerKeyedAESCrypto.supported()
  		? new ServerKeyedAESCrypto(secretStorageKeyPath) : new TransparentCrypto();
  
-@@ -647,7 +704,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
+@@ -652,7 +709,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
  			}
  		},
  		secretStorageProvider: config.remoteAuthority && !secretStorageKeyPath
@@ -246,7 +226,7 @@ index 959fdb5c366..760f8a39e6c 100644
  	});
  })();
 diff --git a/lib/vscode/src/vs/platform/product/common/product.ts b/lib/vscode/src/vs/platform/product/common/product.ts
-index df9e32b556e..e67de7f4f4c 100644
+index 477902d717c..f1ddc84a2e1 100644
 --- a/lib/vscode/src/vs/platform/product/common/product.ts
 +++ b/lib/vscode/src/vs/platform/product/common/product.ts
 @@ -88,8 +88,17 @@ else {
@@ -264,10 +244,22 @@ index df9e32b556e..e67de7f4f4c 100644
 +		 */
  		Object.assign(product, {
 -			version: '1.104.0-dev',
-+			version: pkg?.version ?? '1.136.1-dev',
++			version: pkg?.version ?? '1.139.1-dev',
  			nameShort: 'Code - OSS Dev',
  			nameLong: 'Code - OSS Dev',
  			applicationName: 'code-oss',
+diff --git a/lib/vscode/src/vs/platform/window/common/window.ts b/lib/vscode/src/vs/platform/window/common/window.ts
+index 49f491a5494..0d7f8b26fc7 100644
+--- a/lib/vscode/src/vs/platform/window/common/window.ts
++++ b/lib/vscode/src/vs/platform/window/common/window.ts
+@@ -69,6 +69,7 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
+ 	readonly gotoLineMode?: boolean;
+ 
+ 	readonly waitMarkerFileURI?: URI;
++	readonly promptEditor?: boolean;
+ 
+ 	/**
+ 	 * When set, the opened window is asked to open the chat session identified
 diff --git a/lib/vscode/src/vs/server/node/webClientServer.ts b/lib/vscode/src/vs/server/node/webClientServer.ts
 index d9d6cc4ffd3..4b5a71cd1a7 100644
 --- a/lib/vscode/src/vs/server/node/webClientServer.ts
@@ -305,11 +297,72 @@ index d9d6cc4ffd3..4b5a71cd1a7 100644
  			rootEndpoint: rootBase,
  			updateEndpoint: !this._environmentService.args['disable-update-check'] ? rootBase + '/update/check' : undefined,
  			logoutEndpoint: this._environmentService.args['auth'] && this._environmentService.args['auth'] !== "none" ? rootBase + '/logout' : undefined,
+diff --git a/lib/vscode/src/vs/workbench/api/browser/mainThreadCLICommands.ts b/lib/vscode/src/vs/workbench/api/browser/mainThreadCLICommands.ts
+index 7138b4ff30b..8f573703c77 100644
+--- a/lib/vscode/src/vs/workbench/api/browser/mainThreadCLICommands.ts
++++ b/lib/vscode/src/vs/workbench/api/browser/mainThreadCLICommands.ts
+@@ -20,10 +20,11 @@ import { ILabelService } from '../../../platform/label/common/label.js';
+ import { AbstractMessageLogger, ILogger, LogLevel } from '../../../platform/log/common/log.js';
+ import { IOpenerService } from '../../../platform/opener/common/opener.js';
+ import { IProductService } from '../../../platform/product/common/productService.js';
+-import { IOpenWindowOptions, IWindowOpenable } from '../../../platform/window/common/window.js';
++import { IOpenWindowOptions, IWindowOpenable, isFileToOpen } from '../../../platform/window/common/window.js';
+ import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+ import { IExtensionManagementServerService } from '../../services/extensionManagement/common/extensionManagement.js';
+ import { IExtensionManifestPropertiesService } from '../../services/extensions/common/extensionManifestPropertiesService.js';
++import { IHostService } from '../../services/host/browser/host.js';
+ 
+ 
+ // this class contains the commands that the CLI server is reying on
+@@ -41,6 +42,13 @@ CommandsRegistry.registerCommand('_remoteCLI.windowOpen', function (accessor: Se
+ 	return commandService.executeCommand('_files.windowOpen', toOpen, options);
+ });
+ 
++CommandsRegistry.registerCommand('_remoteCLI.promptEditor', function (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options: IOpenWindowOptions): Promise<void> {
++	if (!isWeb || toOpen.length !== 1 || !isFileToOpen(toOpen[0]) || !options?.waitMarkerFileURI) {
++		throw new Error(localize('promptEditorInvalidRequest', "Prompt editing requires one file in the Code browser workbench."));
++	}
++	return accessor.get(IHostService).openWindow(toOpen, { ...options, promptEditor: true, forceReuseWindow: true });
++});
++
+ CommandsRegistry.registerCommand('_remoteCLI.getSystemStatus', function (accessor: ServicesAccessor): Promise<string | undefined> {
+ 	const commandService = accessor.get(ICommandService);
+ 	return commandService.executeCommand<string>('_issues.getSystemStatus');
 diff --git a/lib/vscode/src/vs/workbench/api/node/extHostCLIServer.ts b/lib/vscode/src/vs/workbench/api/node/extHostCLIServer.ts
-index 13d623f5548..5eac1a49621 100644
+index 13d623f5548..ec62842ceac 100644
 --- a/lib/vscode/src/vs/workbench/api/node/extHostCLIServer.ts
 +++ b/lib/vscode/src/vs/workbench/api/node/extHostCLIServer.ts
-@@ -58,34 +58,47 @@ export interface ICommandsExecuter {
+@@ -13,7 +13,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
+ import { hasWorkspaceFileExtension } from '../../../platform/workspace/common/workspace.js';
+ 
+ export interface OpenCommandPipeArgs {
+-	type: 'open';
++	type: 'open' | 'promptEditor';
+ 	fileURIs?: string[];
+ 	folderURIs?: string[];
+ 	forceNewWindow?: boolean;
+@@ -32,6 +32,11 @@ export interface OpenExternalCommandPipeArgs {
+ 	uris: string[];
+ }
+ 
++export interface BrowseFolderPipeArgs {
++	type: 'browseFolder';
++	folderURIs: [string];
++}
++
+ export interface StatusPipeArgs {
+ 	type: 'status';
+ }
+@@ -49,7 +54,7 @@ export interface ClipboardPipeArgs {
+ 	content: string;
+ }
+ 
+-export type PipeCommand = OpenCommandPipeArgs | StatusPipeArgs | OpenExternalCommandPipeArgs | ExtensionManagementPipeArgs | ClipboardPipeArgs;
++export type PipeCommand = OpenCommandPipeArgs | BrowseFolderPipeArgs | StatusPipeArgs | OpenExternalCommandPipeArgs | ExtensionManagementPipeArgs | ClipboardPipeArgs;
+ 
+ export interface ICommandsExecuter {
+ 	executeCommand<T>(id: string, ...args: unknown[]): Promise<T>;
+@@ -58,34 +63,47 @@ export interface ICommandsExecuter {
  export class CLIServerBase {
  	private _server: http.Server | undefined = undefined;
  	private _disposed = false;
@@ -366,6 +419,57 @@ index 13d623f5548..5eac1a49621 100644
  		}
  	}
  
+@@ -103,6 +121,18 @@ export class CLIServerBase {
+ 				const data: PipeCommand | any = JSON.parse(chunks.join(''));
+ 				let returnObj: string | undefined;
+ 				switch (data.type) {
++					case 'promptEditor':
++						if (!Array.isArray(data.fileURIs) || data.fileURIs.length !== 1 || typeof data.fileURIs[0] !== 'string' || typeof data.waitMarkerFilePath !== 'string' || !data.waitMarkerFilePath) {
++							throw new Error('A prompt file URI and wait marker are required.');
++						}
++						returnObj = await this.open(data);
++						break;
++					case 'browseFolder':
++						if (!Array.isArray(data.folderURIs) || data.folderURIs.length !== 1 || typeof data.folderURIs[0] !== 'string') {
++							throw new Error('A single folder URI is required.');
++						}
++						returnObj = await this._commands.executeCommand<string>('_files.browseFolder', URI.parse(data.folderURIs[0]));
++						break;
+ 					case 'open':
+ 						returnObj = await this.open(data);
+ 						break;
+@@ -120,7 +150,7 @@ export class CLIServerBase {
+ 						break;
+ 					default:
+ 						sendResponse(404, `Unknown message type: ${data.type}`);
+-						break;
++						return;
+ 				}
+ 				sendResponse(200, returnObj);
+ 			} catch (e) {
+@@ -133,6 +163,7 @@ export class CLIServerBase {
+ 
+ 	private async open(data: OpenCommandPipeArgs): Promise<undefined> {
+ 		const { fileURIs, folderURIs, forceNewWindow, diffMode, mergeMode, addMode, removeMode, forceReuseWindow, gotoLineMode, waitMarkerFilePath, remoteAuthority } = data;
++		const promptEditor = data.type === 'promptEditor';
+ 		const urisToOpen: IWindowOpenable[] = [];
+ 		if (Array.isArray(folderURIs)) {
+ 			for (const s of folderURIs) {
+@@ -158,8 +189,12 @@ export class CLIServerBase {
+ 		}
+ 		const waitMarkerFileURI = waitMarkerFilePath ? URI.file(waitMarkerFilePath) : undefined;
+ 		const preferNewWindow = !forceReuseWindow && !waitMarkerFileURI && !addMode && !removeMode;
+-		const windowOpenArgs: IOpenWindowOptions = { forceNewWindow, diffMode, mergeMode, addMode, removeMode, gotoLineMode, forceReuseWindow, preferNewWindow, waitMarkerFileURI, remoteAuthority };
+-		this._commands.executeCommand('_remoteCLI.windowOpen', urisToOpen, windowOpenArgs);
++		const windowOpenArgs: IOpenWindowOptions = { forceNewWindow, diffMode, mergeMode, addMode, removeMode, gotoLineMode, forceReuseWindow, preferNewWindow, waitMarkerFileURI, promptEditor, remoteAuthority };
++		if (promptEditor) {
++			await this._commands.executeCommand('_remoteCLI.promptEditor', urisToOpen, windowOpenArgs);
++		} else {
++			this._commands.executeCommand('_remoteCLI.windowOpen', urisToOpen, windowOpenArgs);
++		}
+ 	}
+ 
+ 	private async openExternal(data: OpenExternalCommandPipeArgs): Promise<undefined> {
 diff --git a/lib/vscode/src/vs/workbench/api/node/extHostExtensionService.ts b/lib/vscode/src/vs/workbench/api/node/extHostExtensionService.ts
 index 5893970d1f8..6a573f2d7f0 100644
 --- a/lib/vscode/src/vs/workbench/api/node/extHostExtensionService.ts
@@ -393,11 +497,132 @@ index 5893970d1f8..6a573f2d7f0 100644
  			const socketPath = process.env['VSCODE_IPC_HOOK_CLI'];
  			const codeServerSocketPath = process.env['CODE_SERVER_SESSION_SOCKET']
  			if (!socketPath || !codeServerSocketPath) {
+diff --git a/lib/vscode/src/vs/workbench/contrib/files/browser/fileCommands.ts b/lib/vscode/src/vs/workbench/contrib/files/browser/fileCommands.ts
+index 92a14ca8401..35204eff21b 100644
+--- a/lib/vscode/src/vs/workbench/contrib/files/browser/fileCommands.ts
++++ b/lib/vscode/src/vs/workbench/contrib/files/browser/fileCommands.ts
+@@ -10,7 +10,7 @@ import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorIn
+ import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from '../../../../platform/window/common/window.js';
+ import { IHostService } from '../../../services/host/browser/host.js';
+ import { ServicesAccessor, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+-import { IWorkspaceContextService, UNTITLED_WORKSPACE_NAME } from '../../../../platform/workspace/common/workspace.js';
++import { IWorkspaceContextService, UNTITLED_WORKSPACE_NAME, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+ import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext, VIEW_ID } from '../common/files.js';
+ import { ExplorerViewPaneContainer } from './explorerViewlet.js';
+ import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+@@ -53,6 +53,38 @@ import { OpenEditorsView } from './views/openEditorsView.js';
+ import { ExplorerView } from './views/explorerView.js';
+ import { IListService } from '../../../../platform/list/browser/listService.js';
+ 
++/**
++ * CDXC:CodeEditor 2026-09-23 WHY:
++ * A folder link means browse that folder, not silently add a duplicate workspace root. Outside folders use normal workspace addition; a workspace reload leaves the IPC request queued until the new workbench can confirm the reveal.
++ */
++CommandsRegistry.registerCommand('_files.browseFolder', async (accessor: ServicesAccessor, resource: URI): Promise<'opened' | 'reload'> => {
++	const contextService = accessor.get(IWorkspaceContextService);
++	const fileService = accessor.get(IFileService);
++	const workspaceEditingService = accessor.get(IWorkspaceEditingService);
++	const explorerService = accessor.get(IExplorerService);
++	const viewsService = accessor.get(IViewsService);
++	resource = URI.revive(resource);
++	if (!(await fileService.stat(resource)).isDirectory) {
++		throw new Error(nls.localize('browseFolder.notFolder', "The requested path is not a folder."));
++	}
++	if (!contextService.getWorkspaceFolder(resource)) {
++		const needsReload = contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE;
++		await workspaceEditingService.addFolders([{ uri: resource }], true);
++		if (!contextService.getWorkspaceFolder(resource)) {
++			throw new Error(nls.localize('browseFolder.notAdded', "The folder could not be added to this workspace."));
++		}
++		if (needsReload) {
++			return 'reload';
++		}
++	}
++	const view = await viewsService.openView<ExplorerView>(explorerService.getViewId() ?? VIEW_ID, true);
++	if (!view) {
++		throw new Error(nls.localize('browseFolder.noExplorer', "The Explorer view is unavailable."));
++	}
++	await view.browseFolder(resource);
++	return 'opened';
++});
++
+ export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
+ 	if (Array.isArray(toOpen)) {
+ 		const hostService = accessor.get(IHostService);
+diff --git a/lib/vscode/src/vs/workbench/contrib/files/browser/views/explorerView.ts b/lib/vscode/src/vs/workbench/contrib/files/browser/views/explorerView.ts
+index e8968636b37..0182659b643 100644
+--- a/lib/vscode/src/vs/workbench/contrib/files/browser/views/explorerView.ts
++++ b/lib/vscode/src/vs/workbench/contrib/files/browser/views/explorerView.ts
+@@ -970,6 +970,21 @@ export class ExplorerView extends ViewPane implements IExplorerView {
+ 		}
+ 	}
+ 
++	public async browseFolder(resource: URI): Promise<void> {
++		await this.selectResource(resource, 'force');
++		const item = this.explorerService.findClosest(resource);
++		if (!item?.isDirectory || !this.uriIdentityService.extUri.isEqual(item.resource, resource)) {
++			throw new Error(nls.localize('browseFolder.unavailable', "The folder could not be revealed in Explorer."));
++		}
++		if (item !== this.tree.getInput()) {
++			await this.tree.expand(item);
++			this.tree.reveal(item, 0.5);
++			this.tree.setFocus([item]);
++			this.tree.setSelection([item]);
++		}
++		this.tree.domFocus();
++	}
++
+ 	itemsCopied(stats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void {
+ 		this.fileCopiedContextKey.set(stats.length > 0);
+ 		this.resourceCutContextKey.set(cut && stats.length > 0);
 diff --git a/lib/vscode/src/vs/workbench/services/host/browser/browserHostService.ts b/lib/vscode/src/vs/workbench/services/host/browser/browserHostService.ts
-index 3815713423e..bf761b25efa 100644
+index 3815713423e..1f642e437d5 100644
 --- a/lib/vscode/src/vs/workbench/services/host/browser/browserHostService.ts
 +++ b/lib/vscode/src/vs/workbench/services/host/browser/browserHostService.ts
-@@ -357,6 +357,22 @@ export class BrowserHostService extends Disposable implements IHostService {
+@@ -45,6 +45,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
+ import { MarkdownString } from '../../../../base/common/htmlContent.js';
+ import { CancellationToken } from '../../../../base/common/cancellation.js';
+ import { showBrowserToast } from './toasts.js';
++import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService.js';
+ 
+ enum HostShutdownReason {
+ 
+@@ -296,6 +297,34 @@ export class BrowserHostService extends Disposable implements IHostService {
+ 
+ 		// Handle Files
+ 		if (fileOpenables.length > 0) {
++			/**
++			 * CDXC:PromptEditor 2026-09-23 WHY:
++			 * Browser Code defaults to auto-save, which silently accepted a cancelled external prompt edit. Suspend auto-save only for the explicit prompt resource until its editor closes, so Save and Don't Save remain meaningful without changing user or workspace preferences.
++			 */
++			if (options?.promptEditor && options.waitMarkerFileURI && fileOpenables.length === 1) {
++				const resource = fileOpenables[0].fileUri;
++				const waitMarker = options.waitMarkerFileURI;
++				return this.instantiationService.invokeFunction(async accessor => {
++					const editorService = accessor.get(IEditorService);
++					const autoSaveOverride = this._register(accessor.get(IFilesConfigurationService).disableAutoSave(resource));
++					let whenClosed: Promise<void>;
++					try {
++						const editor = await editorService.openEditor({ resource, options: { pinned: true } });
++						if (!editor) {
++							throw new Error(localize('promptEditorOpenFailed', "Could not open the prompt editor."));
++						}
++						whenClosed = this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, [resource]));
++					} catch (error) {
++						this._store.delete(autoSaveOverride);
++						throw error;
++					}
++					// Acknowledge the open now so another queued request is not held until this editor closes.
++					void whenClosed
++						.then(() => this.fileService.del(waitMarker))
++						.catch(error => this.logService.error(error))
++						.finally(() => this._store.delete(autoSaveOverride));
++				});
++			}
+ 			this.withServices(async accessor => {
+ 				const editorService = accessor.get(IEditorService);
+ 
+@@ -357,6 +386,22 @@ export class BrowserHostService extends Disposable implements IHostService {
  
  				// Just open normally
  				else {

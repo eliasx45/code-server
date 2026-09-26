@@ -22,19 +22,52 @@ Code v99.99.999
 
 ## Unreleased
 
-Code v1.136.1
+Code v1.139.1
+
+### Changed
+
+- Update to Code 1.139.1
 
 ### Fixed
 
-- The data path was incorrectly being set to `~/.vscode-server-oss/data`.
+- `--idle-timeout-seconds` was only validated when passed as
+  `--idle-timeout-seconds=<value>`; values of 60 or less passed as
+  `--idle-timeout-seconds <value>` were silently accepted.
 
-## [4.136.1](https://github.com/coder/code-server/releases/tag/v4.136.1) - 2026-09-08
+## [4.138.0](https://github.com/coder/code-server/releases/tag/v4.138.0) - 2026-09-19
+
+Code v1.138.0
+
+### Changed
+
+- Update to Code 1.138.0
+
+### Fixed
+
+- Preserve the original path, query parameters, and fragment when rewriting
+  localhost URLs through the port proxy. If `VSCODE_PROXY_URI` has any query
+  parameters or fragments, those will be lost.
+
+## [4.137.0](https://github.com/coder/code-server/releases/tag/v4.137.0) - 2026-09-11
+
+Code v1.137.0
+
+### Changed
+
+- Update to Code 1.137.0
+
+## [4.136.2](https://github.com/coder/code-server/releases/tag/v4.136.2) - 2026-09-08
 
 Code v1.136.1
 
 ### Changed
 
 - Update to Code 1.136.1
+
+### Fixed
+
+- 4.136.2 replaces a removed 4.136.1 release that had the data path incorrectly
+  being set to `~/.vscode-server-oss/data`.
 
 ## [4.135.0](https://github.com/coder/code-server/releases/tag/v4.135.0) - 2026-08-27
 

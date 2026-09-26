@@ -8,7 +8,7 @@ Index: code-server/lib/vscode/build/gulpfile.reh.ts
 ===================================================================
 --- code-server.orig/lib/vscode/build/gulpfile.reh.ts
 +++ code-server/lib/vscode/build/gulpfile.reh.ts
-@@ -472,6 +472,16 @@ function prepareCopilotRipgrepShimTaskRE
+@@ -530,6 +530,16 @@ function prepareCopilotRipgrepShimTaskRE
  	return async () => {
  		const outputDir = path.join(BUILD_ROOT, destinationFolderName);
  		const nodeModulesDir = path.join(outputDir, 'node_modules');
