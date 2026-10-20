@@ -69,6 +69,11 @@ interface PendingQueueOpenRequest extends QueueOpenRequest {
 
 class WorkbenchOpenRejected extends Error {}
 
+/** How long a queued open waits for a Code workbench to take it before it fails. */
+const QUEUED_OPEN_TIMEOUT_MS = 60_000
+/** How long one workbench may take to answer a delivered open before the next one is tried. */
+const OPEN_DELIVERY_TIMEOUT_MS = 5_000
+
 function isQueueOpenRequest(value: unknown): value is QueueOpenRequest {
   if (!value || typeof value !== "object") {
     return false
@@ -235,6 +240,8 @@ export class EditorSessionManager {
   private pendingOpenFlushAgain = false
   private pendingOpenDelivery:
     { request: PendingQueueOpenRequest; socketPath: string; controller: AbortController } | undefined
+  /** Workbenches that let a delivered open time out, tried after every other candidate until they register again. */
+  private unresponsiveWorkbenches = new Set<string>()
 
   /**
    * CDXC:CodeEditor 2026-09-24 WHY:
@@ -242,6 +249,7 @@ export class EditorSessionManager {
    */
   async addSession(entry: EditorSessionEntry): Promise<void> {
     logger.debug(`Adding session to session registry: ${entry.socketPath}`)
+    this.unresponsiveWorkbenches.delete(entry.socketPath)
     this.entries.set(entry.socketPath, entry)
     const delivery = this.pendingOpenDelivery
     if (delivery && this.getCandidatesForOpenRequest(delivery.request)[0]?.socketPath !== delivery.socketPath) {
@@ -295,6 +303,7 @@ export class EditorSessionManager {
   deleteSession(socketPath: string): void {
     logger.debug(`Deleting session from session registry: ${socketPath}`)
     this.entries.delete(socketPath)
+    this.unresponsiveWorkbenches.delete(socketPath)
   }
 
   /**
@@ -305,10 +314,40 @@ export class EditorSessionManager {
     return this.getConnectedSocketPathForCandidates(this.getCandidatesForFile(filePath))
   }
 
+  /**
+   * CDXC:CodeEditor 2026-10-20 WHY:
+   * A queued open used to wait for its workbench with no end, so when none ever took it (or delivery hung on a workbench that never answered) the caller blocked forever and the file silently never opened (#266).
+   * It now fails after QUEUED_OPEN_TIMEOUT_MS, the caller exits non-zero, and Ghostex shows "Could not open file in Code view".
+   */
   async queueOpen(request: QueueOpenRequest): Promise<QueueOpenResponse["status"]> {
     return new Promise((resolve, reject) => {
+      const expiry = setTimeout(() => {
+        if (this.pendingOpenRequests.get(request.requestKey) !== pending) {
+          return
+        }
+        this.pendingOpenRequests.delete(request.requestKey)
+        if (this.pendingOpenDelivery?.request === pending) {
+          this.pendingOpenDelivery.controller.abort()
+        }
+        pending.reject(
+          new Error(
+            `No Code workbench${request.workspaceFolder ? ` for ${request.workspaceFolder}` : ""} took the open within ${QUEUED_OPEN_TIMEOUT_MS / 1000}s.`,
+          ),
+        )
+      }, QUEUED_OPEN_TIMEOUT_MS)
+      const pending: PendingQueueOpenRequest = {
+        ...request,
+        settle: (status) => {
+          clearTimeout(expiry)
+          resolve(status)
+        },
+        reject: (error) => {
+          clearTimeout(expiry)
+          reject(error)
+        },
+      }
       this.pendingOpenRequests.get(request.requestKey)?.settle("replaced")
-      this.pendingOpenRequests.set(request.requestKey, { ...request, settle: resolve, reject })
+      this.pendingOpenRequests.set(request.requestKey, pending)
       if (this.pendingOpenDelivery?.request.requestKey === request.requestKey) {
         this.pendingOpenDelivery.controller.abort()
       }
@@ -317,9 +356,13 @@ export class EditorSessionManager {
   }
 
   private getCandidatesForOpenRequest(request: QueueOpenRequest): EditorSessionEntry[] {
-    return request.workspaceFolder
+    const candidates = request.workspaceFolder
       ? this.getCandidatesForWorkspaceFolder(request.workspaceFolder)
       : this.getCandidatesForFile(request.filePath, true)
+    return [
+      ...candidates.filter((entry) => !this.unresponsiveWorkbenches.has(entry.socketPath)),
+      ...candidates.filter((entry) => this.unresponsiveWorkbenches.has(entry.socketPath)),
+    ]
   }
 
   private async getConnectedSocketPathForCandidates(candidates: EditorSessionEntry[]): Promise<string | undefined> {
@@ -355,6 +398,17 @@ export class EditorSessionManager {
           }
           const controller = new AbortController()
           this.pendingOpenDelivery = { request, socketPath, controller }
+          /**
+           * CDXC:CodeEditor 2026-10-20 WHY:
+           * A workbench answers an open only once its renderer took it, so a closed Code page whose extension host lives on through the reconnection grace never answers. It is newer than the visible page after a reload, so it was tried first and the queued `file:line` open was lost there (#266).
+           * After OPEN_DELIVERY_TIMEOUT_MS the delivery moves to the next workbench, and the silent one is tried last until it registers again.
+           * SEE-ALSO: lib/vscode src/vs/workbench/api/node/extHostCLIServer.ts (open waits for the renderer).
+           */
+          let deliveryTimedOut = false
+          const deliveryTimeout = setTimeout(() => {
+            deliveryTimedOut = true
+            controller.abort()
+          }, OPEN_DELIVERY_TIMEOUT_MS)
           try {
             const result = await sendOpenCommand(socketPath, request.pipeArgs, controller.signal)
             if (result === "reload") {
@@ -367,6 +421,9 @@ export class EditorSessionManager {
               request.settle("opened")
             }
           } catch (error) {
+            if (deliveryTimedOut) {
+              this.unresponsiveWorkbenches.add(socketPath)
+            }
             if (controller.signal.aborted) {
               this.pendingOpenFlushAgain = true
               continue
@@ -381,6 +438,7 @@ export class EditorSessionManager {
             this.deleteSession(socketPath)
             this.pendingOpenFlushAgain = true
           } finally {
+            clearTimeout(deliveryTimeout)
             this.pendingOpenDelivery = undefined
           }
         }
