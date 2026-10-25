@@ -22,6 +22,63 @@ Code v99.99.999
 
 ## Unreleased
 
+Code v1.143.1
+
+### Changed
+
+- Update to Code 1.143.1
+
+## [4.141.1](https://github.com/coder/code-server/releases/tag/v4.141.1) - 2026-10-23
+
+### Security
+
+- Update bundled Node.js to 24.22.1 to fix a remote code execution bug in the
+  Brotli decoder (CVE-2026-111497).
+- Reject compressed request bodies (`Content-Encoding: br`, `gzip`, or
+  `deflate`) instead of decompressing them.
+
+### Fixed
+
+- Boolean flags in the `--flag=false` form and in the config file now respect
+  being set to false.
+
+### Added
+
+- Turkish locale.
+
+### Changed
+
+- Expand values from path options in the config file that start with a tilde.
+
+## [4.141.0](https://github.com/coder/code-server/releases/tag/v4.141.0) - 2026-10-08
+
+Code v1.141.0
+
+### Added
+
+- A new `--enable-remote-storage` flag can be used to make code-server persist
+  workbench storage on the remote server instead of browser storage. Use this if
+  you want to share storage between multiple devices.
+
+### Fixed
+
+- The Typescript extension was trying to load as a browser extension even though
+  we build the remote server version, causing it to fail to activate.
+
+### Changed
+
+- Update to Code 1.141.0
+
+## [4.140.0](https://github.com/coder/code-server/releases/tag/v4.140.0) - 2026-10-02
+
+Code v1.140.0
+
+### Changed
+
+- Update to Code 1.140.0
+
+## [4.139.1](https://github.com/coder/code-server/releases/tag/v4.139.1) - 2026-09-26
+
 Code v1.139.1
 
 ### Changed

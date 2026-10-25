@@ -1,5 +1,6 @@
 import { Level, logger } from "@coder/logger"
 import { promises as fs } from "fs"
+import * as os from "os"
 import * as path from "path"
 import {
   UserProvidedArgs,
@@ -580,8 +581,32 @@ describe("parser", () => {
       "install-extension": ["extension.number1", "extension.number2"],
     })
   })
+  it("should expand ~ in path options from the config file", () => {
+    const configContents = `
+      user-data-dir: ~/.config/code-server-data
+      extensions-dir: ~/extensions
+    `
+    expect(parseConfigFile(configContents, "/fake-config-path")).toEqual({
+      config: "/fake-config-path",
+      "user-data-dir": path.join(os.homedir(), ".config/code-server-data"),
+      "extensions-dir": path.join(os.homedir(), "extensions"),
+    })
+  })
   it("should ignore optional strings set to false", async () => {
     expect(parse(["--cert=false"])).toEqual({})
+  })
+  it("should ignore booleans set to false", async () => {
+    expect(parse(["--disable-telemetry=false"])).toEqual({})
+  })
+  it("should parse booleans set to false in the config file", () => {
+    const configContents = `
+      disable-telemetry: false
+      disable-update-check: true
+    `
+    expect(parseConfigFile(configContents, "/fake-config-path")).toEqual({
+      config: "/fake-config-path",
+      "disable-update-check": true,
+    })
   })
   it("should use last flag", async () => {
     expect(parse(["--port", "8081", "--port", "8082"])).toEqual({
@@ -1069,6 +1094,13 @@ describe("toCodeArgs", () => {
       "enable-sandbox": true,
       agents: true,
       "enable-smoke-test-driver": false,
+    })
+  })
+
+  it("should pass through --enable-remote-storage", async () => {
+    expect(await toCodeArgs(await setDefaults(parse(["--enable-remote-storage"])))).toStrictEqual({
+      ...vscodeDefaults,
+      "enable-remote-storage": true,
     })
   })
 

@@ -3,7 +3,7 @@ import * as crypto from "crypto"
 import { promises as fs } from "fs"
 import { load } from "js-yaml"
 import * as path from "path"
-import { generateCertificate, generatePassword, paths, splitOnFirstEquals } from "./util"
+import { expandTilde, generateCertificate, generatePassword, paths, splitOnFirstEquals } from "./util"
 import { EditorSessionManagerClient } from "./vscodeSocket"
 
 export enum Feature {
@@ -47,6 +47,7 @@ export interface UserProvidedCodeArgs {
   "show-versions"?: boolean
   category?: string
   "github-auth"?: string
+  "enable-remote-storage"?: boolean
   "disable-update-check"?: boolean
   "disable-file-downloads"?: boolean
   "disable-file-uploads"?: boolean
@@ -292,6 +293,10 @@ export const options: Options<Required<UserProvidedArgs>> = {
     type: "string",
     description: "GitHub authentication token (can only be passed in via $GITHUB_TOKEN or the config file).",
   },
+  "enable-remote-storage": {
+    type: "boolean",
+    description: "Persist VS Code workbench storage on the remote server instead of browser storage.",
+  },
   "proxy-domain": { type: "string[]", description: "Domain used for proxying ports." },
   "skip-auth-preflight": {
     type: "boolean",
@@ -459,7 +464,11 @@ export const parse = (
 
       const option = options[key]
       if (option.type === "boolean") {
-        ;(args[key] as boolean) = true
+        // Booleans set to false (for example `--flag=false`, which is also how
+        // false values from the config file are passed in) are ignored.
+        if (value !== "false") {
+          ;(args[key] as boolean) = true
+        }
         continue
       }
 
@@ -485,7 +494,7 @@ export const parse = (
       }
 
       if (option.path) {
-        value = path.resolve(value)
+        value = path.resolve(expandTilde(value))
       }
 
       switch (option.type) {

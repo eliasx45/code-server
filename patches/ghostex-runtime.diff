@@ -1,7 +1,7 @@
 Ghostex embedded editor integration on top of the upstream code-server patch series.
 
 diff --git a/lib/vscode/product.json b/lib/vscode/product.json
-index f3f91db9fab..643572f538b 100644
+index 64e1c4d2c64..2e584d9c02f 100644
 --- a/lib/vscode/product.json
 +++ b/lib/vscode/product.json
 @@ -1,12 +1,12 @@
@@ -55,8 +55,8 @@ index f3f91db9fab..643572f538b 100644
  	"nodejsArtifactFeed": "",
  	"electronArtifactFeed": "",
  	"urlProtocol": "code-oss",
-@@ -155,17 +155,13 @@
- 		"mcpRegistryDataUrl": "https://api.github.com/copilot/mcp_registry",
+@@ -156,17 +156,13 @@
+ 		"mcpConnectorsUrl": "https://api.github.com/copilot-connectors/api/v1",
  		"managedSettingsUrl": "https://api.github.com/copilot_internal/managed_settings"
  	},
 -	"trustedExtensionAuthAccess": {
@@ -80,7 +80,7 @@ index f3f91db9fab..643572f538b 100644
  	"onboardingKeymaps": [
  		{
  			"id": "vscode",
-@@ -245,5 +241,21 @@
+@@ -246,5 +242,21 @@
  		"GitHub.copilot-chat"
  	],
  	"sessionsWindowAllowedExtensions": [],
@@ -98,16 +98,16 @@ index f3f91db9fab..643572f538b 100644
 +		"ariaKey": "code-server"
 +	},
 +	"quality": "stable",
-+	"codeServerVersion": "4.136.2",
++	"codeServerVersion": "4.143.1",
 +	"documentationUrl": "https://go.microsoft.com/fwlink/?LinkID=533484#vscode",
 +	"keyboardShortcutsUrlMac": "https://go.microsoft.com/fwlink/?linkid=832143",
 +	"keyboardShortcutsUrlWin": "https://go.microsoft.com/fwlink/?linkid=832145"
  }
 diff --git a/lib/vscode/src/vs/base/common/network.ts b/lib/vscode/src/vs/base/common/network.ts
-index bd7caad30c7..7ecb643e8c0 100644
+index 6a39193c45e..08340717baa 100644
 --- a/lib/vscode/src/vs/base/common/network.ts
 +++ b/lib/vscode/src/vs/base/common/network.ts
-@@ -203,8 +203,13 @@ class RemoteAuthoritiesImpl {
+@@ -208,8 +208,13 @@ class RemoteAuthoritiesImpl {
  		this._delegate = delegate;
  	}
  
@@ -124,7 +124,7 @@ index bd7caad30c7..7ecb643e8c0 100644
  
  	getServerRootPath(): string {
 diff --git a/lib/vscode/src/vs/base/common/product.ts b/lib/vscode/src/vs/base/common/product.ts
-index 03cf4d12338..93be6033089 100644
+index d9df3f32768..90875fd9566 100644
 --- a/lib/vscode/src/vs/base/common/product.ts
 +++ b/lib/vscode/src/vs/base/common/product.ts
 @@ -98,6 +98,7 @@ export interface IDictationRuntimeProductConfig {
@@ -136,7 +136,7 @@ index 03cf4d12338..93be6033089 100644
  	readonly updateEndpoint?: string
  	readonly logoutEndpoint?: string
 diff --git a/lib/vscode/src/vs/code/browser/workbench/workbench.ts b/lib/vscode/src/vs/code/browser/workbench/workbench.ts
-index 51e28f1009f..d75d07a2630 100644
+index 6b69d7c3d84..25520020ff9 100644
 --- a/lib/vscode/src/vs/code/browser/workbench/workbench.ts
 +++ b/lib/vscode/src/vs/code/browser/workbench/workbench.ts
 @@ -187,9 +187,56 @@ class ServerKeyedAESCrypto implements ISecretStorageCrypto {
@@ -197,7 +197,7 @@ index 51e28f1009f..d75d07a2630 100644
  
  	private secretsPromise: Promise<Record<string, string>>;
  
-@@ -602,7 +649,17 @@ class WorkspaceProvider implements IWorkspaceProvider {
+@@ -606,7 +653,17 @@ class WorkspaceProvider implements IWorkspaceProvider {
  		throw new Error('Missing web configuration element');
  	}
  	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents; workspaceUri?: UriComponents; callbackRoute: string } = { ...JSON.parse(configElementAttribute), remoteAuthority: location.host }
@@ -216,17 +216,22 @@ index 51e28f1009f..d75d07a2630 100644
  	const secretStorageCrypto = secretStorageKeyPath && ServerKeyedAESCrypto.supported()
  		? new ServerKeyedAESCrypto(secretStorageKeyPath) : new TransparentCrypto();
  
-@@ -652,7 +709,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
+@@ -655,8 +712,10 @@ class WorkspaceProvider implements IWorkspaceProvider {
+ 				})
  			}
  		},
- 		secretStorageProvider: config.remoteAuthority && !secretStorageKeyPath
--			? undefined /* with a remote without embedder-preferred storage, store on the remote */
-+			? new RemoteSecretStorageProvider(remoteSecretStoragePath)
- 			: new LocalStorageSecretStorageProvider(secretStorageCrypto),
+-		secretStorageProvider: config.remoteStorageEnabled || (config.remoteAuthority && !secretStorageKeyPath)
+-			? undefined /* with remote storage enabled, or without embedder-prefered storage, store on the remote */
+-			: new LocalStorageSecretStorageProvider(secretStorageCrypto),
++		secretStorageProvider: config.remoteStorageEnabled
++			? undefined /* with remote storage enabled, store on the remote */
++			: config.remoteAuthority && !secretStorageKeyPath
++				? new RemoteSecretStorageProvider(remoteSecretStoragePath)
++				: new LocalStorageSecretStorageProvider(secretStorageCrypto),
  	});
  })();
 diff --git a/lib/vscode/src/vs/platform/product/common/product.ts b/lib/vscode/src/vs/platform/product/common/product.ts
-index 477902d717c..f1ddc84a2e1 100644
+index 477902d717c..907bd861c9a 100644
 --- a/lib/vscode/src/vs/platform/product/common/product.ts
 +++ b/lib/vscode/src/vs/platform/product/common/product.ts
 @@ -88,8 +88,17 @@ else {
@@ -244,15 +249,15 @@ index 477902d717c..f1ddc84a2e1 100644
 +		 */
  		Object.assign(product, {
 -			version: '1.104.0-dev',
-+			version: pkg?.version ?? '1.139.1-dev',
++			version: pkg?.version ?? '1.143.1-dev',
  			nameShort: 'Code - OSS Dev',
  			nameLong: 'Code - OSS Dev',
  			applicationName: 'code-oss',
 diff --git a/lib/vscode/src/vs/platform/window/common/window.ts b/lib/vscode/src/vs/platform/window/common/window.ts
-index 49f491a5494..0d7f8b26fc7 100644
+index 7e31cd31c3a..eab3268d770 100644
 --- a/lib/vscode/src/vs/platform/window/common/window.ts
 +++ b/lib/vscode/src/vs/platform/window/common/window.ts
-@@ -69,6 +69,7 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
+@@ -70,6 +70,7 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
  	readonly gotoLineMode?: boolean;
  
  	readonly waitMarkerFileURI?: URI;
@@ -261,7 +266,7 @@ index 49f491a5494..0d7f8b26fc7 100644
  	/**
  	 * When set, the opened window is asked to open the chat session identified
 diff --git a/lib/vscode/src/vs/server/node/webClientServer.ts b/lib/vscode/src/vs/server/node/webClientServer.ts
-index d9d6cc4ffd3..4b5a71cd1a7 100644
+index a0391a1bd6e..76da302218b 100644
 --- a/lib/vscode/src/vs/server/node/webClientServer.ts
 +++ b/lib/vscode/src/vs/server/node/webClientServer.ts
 @@ -13,7 +13,7 @@ import { isLinux } from '../../base/common/platform.js';
@@ -329,7 +334,7 @@ index 7138b4ff30b..8f573703c77 100644
  	const commandService = accessor.get(ICommandService);
  	return commandService.executeCommand<string>('_issues.getSystemStatus');
 diff --git a/lib/vscode/src/vs/workbench/api/node/extHostCLIServer.ts b/lib/vscode/src/vs/workbench/api/node/extHostCLIServer.ts
-index 13d623f5548..ec62842ceac 100644
+index 13d623f5548..41d70cf00c8 100644
 --- a/lib/vscode/src/vs/workbench/api/node/extHostCLIServer.ts
 +++ b/lib/vscode/src/vs/workbench/api/node/extHostCLIServer.ts
 @@ -13,7 +13,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
@@ -455,7 +460,7 @@ index 13d623f5548..ec62842ceac 100644
  		const urisToOpen: IWindowOpenable[] = [];
  		if (Array.isArray(folderURIs)) {
  			for (const s of folderURIs) {
-@@ -158,8 +189,12 @@ export class CLIServerBase {
+@@ -158,8 +189,18 @@ export class CLIServerBase {
  		}
  		const waitMarkerFileURI = waitMarkerFilePath ? URI.file(waitMarkerFilePath) : undefined;
  		const preferNewWindow = !forceReuseWindow && !waitMarkerFileURI && !addMode && !removeMode;
@@ -465,16 +470,22 @@ index 13d623f5548..ec62842ceac 100644
 +		if (promptEditor) {
 +			await this._commands.executeCommand('_remoteCLI.promptEditor', urisToOpen, windowOpenArgs);
 +		} else {
-+			this._commands.executeCommand('_remoteCLI.windowOpen', urisToOpen, windowOpenArgs);
++			/**
++			 * CDXC:CodeEditor 2026-10-20 WHY:
++			 * A closed or reloaded Code page leaves its extension host alive for the reconnection grace, and its pipe answered an open at once even though no renderer would ever show it, so Ghostex's queued `file:line` open was handed to that dead workbench and lost while the reloaded page restored its old cursor (#266).
++			 * Answer only once the renderer has taken the command: a dead workbench now stays silent, and code-server moves the delivery to a live one.
++			 * SEE-ALSO: code-server src/node/vscodeSocket.ts (queued open delivery and expiry).
++			 */
++			await this._commands.executeCommand('_remoteCLI.windowOpen', urisToOpen, windowOpenArgs);
 +		}
  	}
  
  	private async openExternal(data: OpenExternalCommandPipeArgs): Promise<undefined> {
 diff --git a/lib/vscode/src/vs/workbench/api/node/extHostExtensionService.ts b/lib/vscode/src/vs/workbench/api/node/extHostExtensionService.ts
-index 5893970d1f8..6a573f2d7f0 100644
+index ade75727186..364dfafe536 100644
 --- a/lib/vscode/src/vs/workbench/api/node/extHostExtensionService.ts
 +++ b/lib/vscode/src/vs/workbench/api/node/extHostExtensionService.ts
-@@ -160,8 +160,10 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
+@@ -161,8 +161,10 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
  		this._instaService.createInstance(ExtHostDownloadService);
  
  		// Register CLI Server for ipc
@@ -487,7 +498,7 @@ index 5893970d1f8..6a573f2d7f0 100644
  			process.env['VSCODE_IPC_HOOK_CLI'] = cliServer.ipcHandlePath;
  		}
  
-@@ -178,6 +180,9 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
+@@ -179,6 +181,9 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
  		performance.mark('code/extHost/didInitAPI');
  
  		(async () => {
@@ -498,7 +509,7 @@ index 5893970d1f8..6a573f2d7f0 100644
  			const codeServerSocketPath = process.env['CODE_SERVER_SESSION_SOCKET']
  			if (!socketPath || !codeServerSocketPath) {
 diff --git a/lib/vscode/src/vs/workbench/contrib/files/browser/fileCommands.ts b/lib/vscode/src/vs/workbench/contrib/files/browser/fileCommands.ts
-index 92a14ca8401..35204eff21b 100644
+index d124ce22ef1..a28250283aa 100644
 --- a/lib/vscode/src/vs/workbench/contrib/files/browser/fileCommands.ts
 +++ b/lib/vscode/src/vs/workbench/contrib/files/browser/fileCommands.ts
 @@ -10,7 +10,7 @@ import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorIn
@@ -507,10 +518,10 @@ index 92a14ca8401..35204eff21b 100644
  import { ServicesAccessor, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 -import { IWorkspaceContextService, UNTITLED_WORKSPACE_NAME } from '../../../../platform/workspace/common/workspace.js';
 +import { IWorkspaceContextService, UNTITLED_WORKSPACE_NAME, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
- import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext, VIEW_ID } from '../common/files.js';
+ import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext } from '../common/files.js';
  import { ExplorerViewPaneContainer } from './explorerViewlet.js';
  import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
-@@ -53,6 +53,38 @@ import { OpenEditorsView } from './views/openEditorsView.js';
+@@ -54,6 +54,38 @@ import { OpenEditorsView } from './views/openEditorsView.js';
  import { ExplorerView } from './views/explorerView.js';
  import { IListService } from '../../../../platform/list/browser/listService.js';
  
@@ -538,7 +549,7 @@ index 92a14ca8401..35204eff21b 100644
 +			return 'reload';
 +		}
 +	}
-+	const view = await viewsService.openView<ExplorerView>(explorerService.getViewId() ?? VIEW_ID, true);
++	const view = await viewsService.openView<ExplorerView>(explorerService.getViewId(), true);
 +	if (!view) {
 +		throw new Error(nls.localize('browseFolder.noExplorer', "The Explorer view is unavailable."));
 +	}
@@ -550,10 +561,10 @@ index 92a14ca8401..35204eff21b 100644
  	if (Array.isArray(toOpen)) {
  		const hostService = accessor.get(IHostService);
 diff --git a/lib/vscode/src/vs/workbench/contrib/files/browser/views/explorerView.ts b/lib/vscode/src/vs/workbench/contrib/files/browser/views/explorerView.ts
-index e8968636b37..0182659b643 100644
+index cf95db6aa79..334241a6ea4 100644
 --- a/lib/vscode/src/vs/workbench/contrib/files/browser/views/explorerView.ts
 +++ b/lib/vscode/src/vs/workbench/contrib/files/browser/views/explorerView.ts
-@@ -970,6 +970,21 @@ export class ExplorerView extends ViewPane implements IExplorerView {
+@@ -968,6 +968,21 @@ export class ExplorerView extends ViewPane implements IExplorerView {
  		}
  	}
  

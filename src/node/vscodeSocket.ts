@@ -160,7 +160,7 @@ export async function makeEditorSessionManagerServer(
 ): Promise<{ server: http.Server; promptEditorIpcReady: boolean }> {
   const router = express()
 
-  router.use(express.json())
+  router.use(express.json({ inflate: false }))
 
   router.get<{}, GetSessionResponse | string | unknown, undefined, { filePath?: string }>(
     "/session",
